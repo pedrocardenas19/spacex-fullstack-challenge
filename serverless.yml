@@ -1,0 +1,56 @@
+service: spacex-fullstack-challenge
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  region: us-east-1
+  stage: dev
+
+  environment:
+    LAUNCHES_TABLE_NAME: ${self:custom.launchesTableName}
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:Scan
+          Resource:
+            - arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.launchesTableName}
+
+custom:
+  launchesTableName: spacex-launches-${sls:stage}
+
+functions:
+  syncLaunches:
+    handler: src/handler.lambda_handler
+    memorySize: 256
+    timeout: 30
+    events:
+      - schedule: rate(6 hours)
+      - httpApi:
+          path: /sync
+          method: post
+
+package:
+  patterns:
+    - src/**
+    - '!src/tests/**'
+    - '!.venv/**'
+
+resources:
+  Resources:
+    LaunchesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.launchesTableName}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: launch_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: launch_id
+            KeyType: HASH
