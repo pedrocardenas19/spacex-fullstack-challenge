@@ -120,3 +120,9 @@ awscliv2.zip
 
 .serverless/
 node_modules/
+
+handler.py
+spacex_client.py
+models.py
+dynamo_repository.py
+requirements.txt

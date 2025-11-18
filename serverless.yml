@@ -1,6 +1,9 @@
 service: spacex-fullstack-challenge
 frameworkVersion: "4"
 
+plugins:
+  - serverless-python-requirements
+
 provider:
   name: aws
   runtime: python3.10
@@ -23,12 +26,18 @@ provider:
 
 custom:
   launchesTableName: spacex-launches-${sls:stage}
+  pythonRequirements:
+    dockerizePip: true
+    slim: true
+    zip: false
+    fileName: requirements.txt
+    strip: false
 
 functions:
   syncLaunches:
-    handler: src/handler.lambda_handler
+    handler: handler.lambda_handler
     memorySize: 256
-    timeout: 30
+    timeout: 120
     events:
       - schedule: rate(6 hours)
       - httpApi:
@@ -36,10 +45,13 @@ functions:
           method: post
 
 package:
+  individually: false
   patterns:
-    - src/**
-    - '!src/tests/**'
-    - '!.venv/**'
+    - '!**'
+    - 'handler.py'
+    - 'spacex_client.py'
+    - 'models.py'
+    - 'dynamo_repository.py'
 
 resources:
   Resources:
