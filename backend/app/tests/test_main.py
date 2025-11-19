@@ -2,7 +2,11 @@ import pytest
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
-from app.main import app
+# Mock boto3 before importing app.main
+with patch("boto3.resource") as mock_boto3:
+    mock_dynamodb = MagicMock()
+    mock_boto3.return_value = mock_dynamodb
+    from app.main import app
 
 client = TestClient(app)
 

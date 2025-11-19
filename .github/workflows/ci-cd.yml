@@ -81,6 +81,7 @@ jobs:
           python -m pytest app/tests/ -v --cov=app --cov-report=term-missing
         env:
           LAUNCHES_TABLE_NAME: test-table
+          AWS_DEFAULT_REGION: us-east-1
 
       - name: Upload coverage reports
         if: always()
