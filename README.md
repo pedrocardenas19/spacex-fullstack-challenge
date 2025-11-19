@@ -1,4 +1,4 @@
-# 🚀 SpaceX Fullstack Challenge
+# 🚀 SpaceX Fullstack Challenge - Pedro Cardenas Restrepo
 
 ![CI/CD Pipeline](https://github.com/pedrocardenas19/spacex-fullstack-challenge/actions/workflows/ci-cd.yml/badge.svg)
 ![PR Checks](https://github.com/pedrocardenas19/spacex-fullstack-challenge/actions/workflows/pr-checks.yml/badge.svg)
