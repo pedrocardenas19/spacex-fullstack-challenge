@@ -4,12 +4,22 @@ from typing import List, Optional, Dict, Any
 
 import boto3
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 app = FastAPI(
     title="SpaceX Launches API",
     version="1.0.0",
     description="API para consultar lanzamientos de SpaceX desde DynamoDB",
+)
+
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 DYNAMO_TABLE_NAME = os.getenv("LAUNCHES_TABLE_NAME", "spacex-launches-dev")
@@ -45,16 +55,16 @@ def health_check():
 @app.get("/launches", response_model=List[Launch])
 def list_launches(
     status: Optional[str] = Query(None, description="success | failed | upcoming"),
-    limit: int = Query(50, ge=1, le=200),
 ):
     """
     Lista lanzamientos. Para 205 items podemos usar scan sin problema.
     """
-    scan_kwargs: Dict[str, Any] = {"Limit": limit}
-
-    # Por simplicidad filtramos status del lado de la app
-    response = table.scan(**scan_kwargs)
+    response = table.scan()
     items = response.get("Items", [])
+    
+    while 'LastEvaluatedKey' in response:
+        response = table.scan(ExclusiveStartKey=response['LastEvaluatedKey'])
+        items.extend(response.get("Items", []))
 
     if status:
         items = [i for i in items if i.get("status") == status]
