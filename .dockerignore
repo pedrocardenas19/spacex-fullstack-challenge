@@ -1,0 +1,72 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+venv
+.venv
+env
+.env
+*.log
+
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn
+
+# Frontend build (se construye en el Dockerfile)
+frontend/dist
+frontend/.vite
+
+# Backend local
+backend/.env
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Tests
+.pytest_cache
+.coverage
+htmlcov
+
+# Documentation
+README.md
+LICENSE
+*.md
+
+# Lambda
+lambda
+src
+handler.py
+spacex_client.py
+models.py
+dynamo_repository.py
+requirements.txt
+serverless.yml
+.serverless
+
+# AWS
+.aws
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml

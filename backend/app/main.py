@@ -1,10 +1,13 @@
 import os
 from datetime import datetime
 from typing import List, Optional, Dict, Any
+from pathlib import Path
 
 import boto3
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 app = FastAPI(
@@ -21,6 +24,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Servir archivos estáticos del frontend (si existe la carpeta)
+STATIC_DIR = Path(__file__).parent / "static"
+if STATIC_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
 
 DYNAMO_TABLE_NAME = os.getenv("LAUNCHES_TABLE_NAME", "spacex-launches-dev")
 dynamodb = boto3.resource("dynamodb")
@@ -125,3 +133,24 @@ def stats_summary():
             by_year[str(year)] = by_year.get(str(year), 0) + 1
 
     return LaunchSummary(total=total, by_status=by_status, by_year=by_year)
+
+
+# Servir el frontend en la raíz (debe ir al final)
+@app.get("/{full_path:path}")
+async def serve_frontend(full_path: str):
+    """
+    Sirve el frontend React. Cualquier ruta no manejada por la API
+    devuelve el index.html para que React Router maneje la navegación.
+    """
+    if STATIC_DIR.exists():
+        # Si es un archivo estático específico, servirlo
+        file_path = STATIC_DIR / full_path
+        if file_path.is_file():
+            return FileResponse(file_path)
+        
+        # Si no, devolver index.html para SPA routing
+        index_path = STATIC_DIR / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+    
+    raise HTTPException(status_code=404, detail="Not found")

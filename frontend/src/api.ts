@@ -1,6 +1,6 @@
 import type { Launch, Stats } from './types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 export const api = {
   async getLaunches(limit = 500): Promise<Launch[]> {
