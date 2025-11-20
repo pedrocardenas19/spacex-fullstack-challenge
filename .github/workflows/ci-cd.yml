@@ -154,20 +154,95 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
 
+      - name: Register new task with ALB
+        run: |
+          echo "🔄 Registering new ECS task with ALB target group..."
+          
+          # Wait for new task to be running
+          sleep 30
+          
+          # Get the new task ARN
+          TASK_ARN=$(aws ecs list-tasks \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service-name ${{ env.ECS_SERVICE }} \
+            --desired-status RUNNING \
+            --region ${{ env.AWS_REGION }} \
+            --query 'taskArns[0]' \
+            --output text)
+          
+          if [ "$TASK_ARN" == "None" ] || [ -z "$TASK_ARN" ]; then
+            echo "❌ No running task found"
+            exit 1
+          fi
+          
+          echo "📋 Task: $TASK_ARN"
+          
+          # Get task network interface
+          ENI_ID=$(aws ecs describe-tasks \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --tasks $TASK_ARN \
+            --region ${{ env.AWS_REGION }} \
+            --query 'tasks[0].attachments[0].details[?name==`networkInterfaceId`].value' \
+            --output text)
+          
+          # Get private IP
+          PRIVATE_IP=$(aws ec2 describe-network-interfaces \
+            --network-interface-ids $ENI_ID \
+            --region ${{ env.AWS_REGION }} \
+            --query 'NetworkInterfaces[0].PrivateIpAddress' \
+            --output text)
+          
+          echo "🌐 Private IP: $PRIVATE_IP"
+          
+          # Target group ARN
+          TG_ARN="arn:aws:elasticloadbalancing:us-east-1:647376275168:targetgroup/spacex-tg/6a88133919d7bacc"
+          
+          # Deregister old targets
+          echo "🗑️  Deregistering old targets..."
+          OLD_TARGETS=$(aws elbv2 describe-target-health \
+            --target-group-arn $TG_ARN \
+            --region ${{ env.AWS_REGION }} \
+            --query 'TargetHealthDescriptions[].Target.Id' \
+            --output text)
+          
+          for OLD_IP in $OLD_TARGETS; do
+            if [ "$OLD_IP" != "$PRIVATE_IP" ]; then
+              aws elbv2 deregister-targets \
+                --target-group-arn $TG_ARN \
+                --targets Id=$OLD_IP \
+                --region ${{ env.AWS_REGION }} 2>/dev/null || true
+              echo "  ✓ Deregistered: $OLD_IP"
+            fi
+          done
+          
+          # Register new target
+          echo "✨ Registering new target..."
+          aws elbv2 register-targets \
+            --target-group-arn $TG_ARN \
+            --targets Id=$PRIVATE_IP,Port=8000 \
+            --region ${{ env.AWS_REGION }}
+          
+          echo "✅ Target registered: $PRIVATE_IP:8000"
+          
+          # Wait for health check
+          echo "⏳ Waiting for health check (30s)..."
+          sleep 30
+          
+          # Check health status
+          HEALTH_STATUS=$(aws elbv2 describe-target-health \
+            --target-group-arn $TG_ARN \
+            --targets Id=$PRIVATE_IP,Port=8000 \
+            --region ${{ env.AWS_REGION }} \
+            --query 'TargetHealthDescriptions[0].TargetHealth.State' \
+            --output text)
+          
+          echo "🏥 Health status: $HEALTH_STATUS"
+
       - name: Deployment summary
         run: |
           echo "✅ Deployment completed successfully!"
           echo "📦 Image: ${{ steps.build-image.outputs.image }}"
           echo "🚀 Service: ${{ env.ECS_SERVICE }}"
           echo "🎯 Cluster: ${{ env.ECS_CLUSTER }}"
-          
-          # Get service URL if ALB is configured
-          SERVICE_ARN=$(aws ecs describe-services \
-            --cluster ${{ env.ECS_CLUSTER }} \
-            --services ${{ env.ECS_SERVICE }} \
-            --query 'services[0].loadBalancers[0].targetGroupArn' \
-            --output text)
-          
-          if [ "$SERVICE_ARN" != "None" ]; then
-            echo "🌐 Application is deployed behind an ALB"
-          fi
+          echo "🌐 Application: http://spacex-alb-307099083.us-east-1.elb.amazonaws.com"
+          echo "📚 API Docs: http://spacex-alb-307099083.us-east-1.elb.amazonaws.com/docs"

@@ -8,7 +8,7 @@
 A production-ready fullstack application for visualizing SpaceX launches, deployed on AWS with serverless architecture and containerized workloads.
 
 **Live Demo**: http://spacex-alb-307099083.us-east-1.elb.amazonaws.com  
-**Alternative Access** (direct ECS): http://54.237.94.213:8000
+**API Documentation (Swagger)**: http://spacex-alb-307099083.us-east-1.elb.amazonaws.com/docs
 
 ## 📐 Architecture Overview
 
@@ -28,7 +28,7 @@ A production-ready fullstack application for visualizing SpaceX launches, deploy
 │  │  SpaceX API Sync │               │                       │
 │  │        ↓         │               ↓                       │
 │  │   DynamoDB ←─────┼───────────────┘                      │
-│  │  (205 launches)  │      Public IP: 54.237.94.213:8000   │
+│  │  (205 launches)  │      (via ALB on port 80)            │
 │  └──────────────────┘                                       │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
@@ -184,7 +184,7 @@ The application is already deployed and running on AWS ECS Fargate:
 - **Cluster**: spacex-cluster
 - **Service**: spacex-fullstack-service
 - **Task Definition**: spacex-fullstack-task
-- **Public IP**: 54.237.94.213:8000
+- **Access**: Via ALB (port 80)
 - **Resources**: 512 CPU units, 1024 MB RAM
 
 **To redeploy after changes:**
@@ -231,7 +231,8 @@ Current coverage: **>80%** across critical paths
 
 ### Base URL
 - **Production (ALB - Port 80)**: http://spacex-alb-307099083.us-east-1.elb.amazonaws.com
-- **Direct ECS (Port 8000)**: http://54.237.94.213:8000
+- **Swagger/OpenAPI Docs**: http://spacex-alb-307099083.us-east-1.elb.amazonaws.com/docs
+- **ReDoc**: http://spacex-alb-307099083.us-east-1.elb.amazonaws.com/redoc
 - **Lambda Sync**: https://qpzf4ldr0g.execute-api.us-east-1.amazonaws.com/sync
 
 ### Available Endpoints
@@ -345,15 +346,12 @@ env:
 
 ## 🌐 Production Access
 
-### Recommended Access (No Firewall Issues)
-**Primary URL**: http://spacex-alb-307099083.us-east-1.elb.amazonaws.com
+### Production Access
+**Application URL**: http://spacex-alb-307099083.us-east-1.elb.amazonaws.com
 
-This URL uses an Application Load Balancer (ALB) on standard port 80, ensuring access from any network including corporate environments with strict firewall rules.
+The application is accessed through an Application Load Balancer (ALB) on standard port 80, ensuring compatibility with any network including corporate environments with strict firewall rules.
 
-### Alternative Access
-**Direct ECS**: http://54.237.94.213:8000
-
-This is the direct ECS task IP. Some corporate firewalls may block non-standard ports like 8000.
+**Note**: Direct ECS task access is not recommended as task IPs change with each deployment. Always use the ALB URL.
 
 ### Infrastructure Details
 
