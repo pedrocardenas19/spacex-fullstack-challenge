@@ -161,20 +161,16 @@ docker push 647376275168.dkr.ecr.us-east-1.amazonaws.com/spacex-fullstack:latest
 
 ## ☁️ AWS Infrastructure Setup
 
-### 1. Deploy Lambda Function (Data Sync)
-```bash
-cd src
-serverless deploy
+### 1. Lambda Function (Data Sync)
 
-# Test the sync endpoint
-curl https://qpzf4ldr0g.execute-api.us-east-1.amazonaws.com/sync
-```
+The Lambda function is already deployed and syncs SpaceX launch data every 6 hours automatically.
 
 **Lambda Configuration:**
 - Runtime: Python 3.10
 - Memory: 256 MB
 - Timeout: 120s
 - Trigger: EventBridge (cron: `rate(6 hours)`)
+- Automatic sync from SpaceX API to DynamoDB
 
 ### 2. Deploy ECS Service (Web Application)
 
@@ -233,7 +229,8 @@ Current coverage: **>80%** across critical paths
 - **Production (ALB - Port 80)**: http://spacex-alb-307099083.us-east-1.elb.amazonaws.com
 - **Swagger/OpenAPI Docs**: http://spacex-alb-307099083.us-east-1.elb.amazonaws.com/docs
 - **ReDoc**: http://spacex-alb-307099083.us-east-1.elb.amazonaws.com/redoc
-- **Lambda Sync**: https://qpzf4ldr0g.execute-api.us-east-1.amazonaws.com/sync
+
+**Note**: Lambda sync runs automatically every 6 hours via EventBridge. Manual sync is not exposed publicly for security.
 
 ### Available Endpoints
 
@@ -344,29 +341,24 @@ env:
   ECS_CLUSTER: spacex-cluster
 ```
 
-## 🌐 Production Access
+## 🌐 Production Infrastructure
 
-### Production Access
 **Application URL**: http://spacex-alb-307099083.us-east-1.elb.amazonaws.com
 
-The application is accessed through an Application Load Balancer (ALB) on standard port 80, ensuring compatibility with any network including corporate environments with strict firewall rules.
+### Application Load Balancer (ALB)
+The application is deployed behind an ALB for high availability and production-grade reliability:
 
-**Note**: Direct ECS task access is not recommended as task IPs change with each deployment. Always use the ALB URL.
+- **DNS**: `spacex-alb-307099083.us-east-1.elb.amazonaws.com`
+- **Port**: 80 (HTTP) - firewall-friendly
+- **Availability Zones**: us-east-1b, us-east-1d, us-east-1e, us-east-1f
+- **Health Check**: `/health` endpoint with automatic failover
+- **Target**: ECS Fargate tasks on port 8000
 
-### Infrastructure Details
-
-**Application Load Balancer (ALB):**
-- DNS: `spacex-alb-307099083.us-east-1.elb.amazonaws.com`
-- Port: 80 (HTTP)
-- Availability Zones: us-east-1b, us-east-1d, us-east-1f
-- Health Check: `/health` endpoint
-- Target: ECS Fargate tasks on port 8000
-
-**Why ALB?**
-- ✅ Standard port 80 - no firewall issues
-- ✅ High availability across multiple AZs
-- ✅ Health checks and automatic failover
-- ✅ Scalable for multiple ECS tasks
+**Benefits:**
+- ✅ Standard port 80 - no corporate firewall issues
+- ✅ Multi-AZ deployment for high availability
+- ✅ Automatic health checks and traffic routing
+- ✅ Seamless zero-downtime deployments
 - ✅ Production-ready architecture
 
 ## 💰 AWS Cost Estimate
@@ -374,15 +366,14 @@ The application is accessed through an Application Load Balancer (ALB) on standa
 Based on us-east-1 region pricing:
 
 | Service | Configuration | Monthly Cost |
-|---------|--------------|--------------|
+|---------|--------------|--------------||
 | Lambda | 256MB, ~100 invocations/month | $0 (Free Tier) |
 | DynamoDB | 205 items, on-demand | ~$1 |
 | ECS Fargate | 0.5 vCPU, 1GB RAM, 24/7 | ~$15-20 |
+| ALB | Application Load Balancer | ~$20 |
 | ECR | ~500MB image storage | ~$0.50 |
 | Data Transfer | ~1GB/month | ~$0.50 |
-| **Total** | | **~$17-22/month** |
-
-*Note: ALB would add ~$20/month if implemented*
+| **Total** | | **~$37-42/month** |
 
 ## 🔧 Environment Variables
 
@@ -399,11 +390,12 @@ AWS_SECRET_ACCESS_KEY=<your-secret>
 AWS_DEFAULT_REGION=us-east-1
 ```
 
-## 📚 Additional Documentation
+## 📚 Additional Resources
 
-- **Serverless Config**: `src/serverless.yml`
-- **Task Definition**: ECS task definition with 512 CPU, 1024 MB
-- **Lambda Endpoint**: https://qpzf4ldr0g.execute-api.us-east-1.amazonaws.com/sync
+- **Serverless Configuration**: `src/serverless.yml` - Lambda and EventBridge setup
+- **Docker Configuration**: `Dockerfile` - Multi-stage production build
+- **CI/CD Pipeline**: `.github/workflows/ci-cd.yml` - Complete automation with ALB integration
+- **ECS Task Definition**: 512 CPU units, 1024 MB memory, optimized for cost and performance
 
 ## ✅ Quality Assurance
 
@@ -461,278 +453,3 @@ GitHub: [@pedrocardenas19](https://github.com/pedrocardenas19)
 ---
 
 **⭐ Technical Assessment Submission - November 2025**
-
-## 📐 Arquitectura
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         AWS Cloud                            │
-│                                                              │
-│  ┌──────────────────┐      ┌─────────────────────────┐     │
-│  │  EventBridge     │      │   Application Load      │     │
-│  │  (Cron: 6h)      │      │   Balancer (ALB)        │     │
-│  └────────┬─────────┘      └──────────┬──────────────┘     │
-│           │                            │                     │
-│           v                            v                     │
-│  ┌──────────────────┐      ┌─────────────────────────┐     │
-│  │  Lambda Function │      │   ECS Fargate Service   │     │
-│  │  (Python 3.10)   │      │   (Docker Container)    │     │
-│  │  Sync SpaceX API │      │   - FastAPI Backend     │     │
-│  │        ↓         │      │   - React Frontend      │     │
-│  │   DynamoDB ←─────┼──────┤   - Serves Static      │     │
-│  │  (205 launches)  │      │   - Port 8000          │     │
-│  └──────────────────┘      └─────────────────────────┘     │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│                    GitHub Actions CI/CD                      │
-│                                                              │
-│  Push to main → Tests → Docker Build → ECR Push → ECS Deploy│
-└─────────────────────────────────────────────────────────────┘
-```
-
-## 🏗️ Stack Tecnológico
-
-### Backend
-- **FastAPI** - API REST con Python 3.12
-- **Boto3** - SDK de AWS para DynamoDB
-- **Uvicorn** - ASGI server
-
-### Frontend
-- **React 18** - UI Library
-- **TypeScript** - Type safety
-- **Vite** - Build tool & dev server
-- **TailwindCSS** - Styling
-- **Recharts** - Data visualization
-
-### Infraestructura
-- **AWS Lambda** - Sync de datos desde SpaceX API
-- **AWS DynamoDB** - Base de datos NoSQL
-- **AWS ECS Fargate** - Contenedores serverless
-- **AWS ECR** - Docker registry
-- **Docker** - Multi-stage optimized builds
-- **GitHub Actions** - CI/CD automation
-
-## 🚀 Quick Start
-
-### Pre-requisitos
-```bash
-# Instalar dependencias
-make install
-
-# O manualmente:
-cd frontend && npm install
-cd backend && pip install -r requirements.txt
-pip install -r requirements.txt
-```
-
-### Desarrollo Local
-
-**Terminal 1 - Backend:**
-```bash
-make dev-backend
-# O: cd backend && uvicorn app.main:app --reload
-```
-
-**Terminal 2 - Frontend:**
-```bash
-make dev-frontend
-# O: cd frontend && npm run dev
-```
-
-Acceder a:
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-
-## 🐳 Docker
-
-### Build y Run Local
-```bash
-# Build
-make docker-build
-
-# Run (requiere credenciales AWS)
-make docker-run
-
-# Test
-curl http://localhost:8000/health
-```
-
-### Deploy a AWS ECR
-```bash
-# Usar script automatizado
-./deploy-ecr.sh
-
-# O con make
-make deploy-ecr
-```
-
-## ☁️ Deployment a AWS
-
-### 1. Lambda (Sync de Datos)
-```bash
-cd src
-serverless deploy
-```
-
-### 2. ECS Fargate (Aplicación Web)
-```bash
-# Configurar task definition
-aws ecs register-task-definition --cli-input-json file://task-definition.example.json
-
-# Deploy con GitHub Actions (automático en push a main)
-git push origin main
-```
-
-## 🧪 Testing
-
-```bash
-# Todos los tests
-make test
-
-# Lambda tests
-make test-lambda
-
-# Backend tests
-make test-backend
-
-# Con coverage
-make test-coverage
-```
-
-## 📊 API Endpoints
-
-| Endpoint | Método | Descripción |
-|----------|--------|-------------|
-| `/health` | GET | Health check |
-| `/launches` | GET | Lista todos los lanzamientos |
-| `/launches?status=success` | GET | Filtra por status |
-| `/launches/{id}` | GET | Detalle de lanzamiento |
-| `/stats/summary` | GET | Estadísticas agregadas |
-
-## 📁 Estructura del Proyecto
-
-```
-spacex-fullstack-challenge/
-├── .github/
-│   └── workflows/
-│       ├── ci-cd.yml           # Pipeline principal
-│       └── pr-checks.yml       # Checks de PRs
-├── frontend/                   # React + Vite + TypeScript
-│   ├── src/
-│   │   ├── components/
-│   │   ├── api.ts
-│   │   ├── types.ts
-│   │   └── App.tsx
-│   └── package.json
-├── backend/                    # FastAPI
-│   ├── app/
-│   │   ├── main.py            # API + Static serving
-│   │   └── tests/
-│   └── requirements.txt
-├── src/                        # Lambda function
-│   ├── handler.py
-│   ├── spacex_client.py
-│   ├── models.py
-│   ├── dynamo_repository.py
-│   └── tests/
-├── Dockerfile                  # Multi-stage build
-├── deploy-ecr.sh              # Script de deploy
-├── Makefile                   # Comandos útiles
-└── serverless.yml             # Config de Lambda
-```
-
-## 🔐 GitHub Actions Setup
-
-### Secrets Requeridos
-En `Settings → Secrets and variables → Actions`:
-
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-
-### Variables de Entorno (en workflow)
-```yaml
-AWS_REGION: us-east-1
-ECR_REPOSITORY: spacex-fullstack
-ECS_SERVICE: spacex-fullstack-service
-ECS_CLUSTER: spacex-cluster
-```
-
-Ver documentación completa: [GITHUB_ACTIONS.md](./GITHUB_ACTIONS.md)
-
-## 📚 Documentación
-
-- [🐳 Docker Deployment Guide](./DOCKER_DEPLOYMENT.md)
-- [🔄 GitHub Actions Setup](./GITHUB_ACTIONS.md)
-- [📋 Task Definition Example](./task-definition.example.json)
-- [🔒 IAM Policy](./iam-policy.json)
-
-## 🛠️ Comandos Útiles
-
-```bash
-# Ver todos los comandos disponibles
-make help
-
-# Linting y formato
-make lint
-make format
-
-# Logs de ECS
-make logs-ecs
-
-# Estado del servicio
-make status-ecs
-
-# Restart forzado
-make restart-ecs
-
-# Info del proyecto
-make info
-```
-
-## 🎯 Features
-
-✅ SPA con React + TypeScript  
-✅ API REST con FastAPI  
-✅ Sync automático cada 6 horas (Lambda)  
-✅ Filtros por status y búsqueda  
-✅ Paginación configurable  
-✅ Gráficos con Recharts  
-✅ Modal de detalles  
-✅ Responsive design  
-✅ Docker multi-stage optimizado  
-✅ CI/CD con GitHub Actions  
-✅ Tests automatizados  
-✅ Deploy a ECS Fargate  
-
-## 📈 Costos Estimados (AWS)
-
-- **Lambda**: ~$0/mes (dentro del free tier)
-- **DynamoDB**: ~$1/mes (205 items, on-demand)
-- **ECS Fargate**: ~$15-30/mes (512 CPU, 1GB RAM)
-- **ALB**: ~$20/mes
-- **ECR**: ~$1/mes (storage)
-- **Total**: ~$40-60/mes
-
-## 🤝 Contributing
-
-1. Fork el proyecto
-2. Crea una feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la branch (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
-## 📝 License
-
-Este proyecto está bajo la licencia MIT.
-
-## 🙋 Autor
-
-**Pedro Cardenas**  
-GitHub: [@pedrocardenas19](https://github.com/pedrocardenas19)
-
----
-
-⭐ Si te gustó este proyecto, dale una estrella!

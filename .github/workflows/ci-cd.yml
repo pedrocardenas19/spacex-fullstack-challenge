@@ -158,6 +158,10 @@ jobs:
         run: |
           echo "🔄 Registering new ECS task with ALB target group..."
           
+          # ALB configuration
+          ALB_ARN="arn:aws:elasticloadbalancing:us-east-1:647376275168:loadbalancer/app/spacex-alb/6a5c9f5e86d7cbf9"
+          TG_ARN="arn:aws:elasticloadbalancing:us-east-1:647376275168:targetgroup/spacex-tg/6a88133919d7bacc"
+          
           # Wait for new task to be running
           sleep 30
           
@@ -185,17 +189,56 @@ jobs:
             --query 'tasks[0].attachments[0].details[?name==`networkInterfaceId`].value' \
             --output text)
           
-          # Get private IP
-          PRIVATE_IP=$(aws ec2 describe-network-interfaces \
+          # Get private IP and subnet
+          NETWORK_INFO=$(aws ec2 describe-network-interfaces \
             --network-interface-ids $ENI_ID \
             --region ${{ env.AWS_REGION }} \
-            --query 'NetworkInterfaces[0].PrivateIpAddress' \
+            --query 'NetworkInterfaces[0].[PrivateIpAddress,SubnetId]' \
             --output text)
           
-          echo "🌐 Private IP: $PRIVATE_IP"
+          PRIVATE_IP=$(echo $NETWORK_INFO | awk '{print $1}')
+          TASK_SUBNET=$(echo $NETWORK_INFO | awk '{print $2}')
           
-          # Target group ARN
-          TG_ARN="arn:aws:elasticloadbalancing:us-east-1:647376275168:targetgroup/spacex-tg/6a88133919d7bacc"
+          echo "🌐 Private IP: $PRIVATE_IP"
+          echo "📍 Subnet: $TASK_SUBNET"
+          
+          # Get task AZ
+          TASK_AZ=$(aws ec2 describe-subnets \
+            --subnet-ids $TASK_SUBNET \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Subnets[0].AvailabilityZone' \
+            --output text)
+          
+          echo "🌍 Task AZ: $TASK_AZ"
+          
+          # Get current ALB subnets and AZs
+          ALB_SUBNETS=$(aws elbv2 describe-load-balancers \
+            --load-balancer-arns $ALB_ARN \
+            --region ${{ env.AWS_REGION }} \
+            --query 'LoadBalancers[0].AvailabilityZones[*].SubnetId' \
+            --output text)
+          
+          ALB_AZS=$(aws elbv2 describe-load-balancers \
+            --load-balancer-arns $ALB_ARN \
+            --region ${{ env.AWS_REGION }} \
+            --query 'LoadBalancers[0].AvailabilityZones[*].ZoneName' \
+            --output text)
+          
+          # Check if task AZ is in ALB AZs
+          if ! echo "$ALB_AZS" | grep -q "$TASK_AZ"; then
+            echo "⚠️  Task AZ ($TASK_AZ) not in ALB AZs, adding it..."
+            
+            # Task subnet is already in the correct AZ, add it to ALB
+            aws elbv2 set-subnets \
+              --load-balancer-arn $ALB_ARN \
+              --subnets $ALB_SUBNETS $TASK_SUBNET \
+              --region ${{ env.AWS_REGION }}
+            
+            echo "✅ Added subnet $TASK_SUBNET to ALB"
+            sleep 10
+          else
+            echo "✅ Task AZ ($TASK_AZ) already in ALB"
+          fi
           
           # Deregister old targets
           echo "🗑️  Deregistering old targets..."
